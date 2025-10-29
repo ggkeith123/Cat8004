@@ -1,26 +1,51 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { parseEther } from 'viem';
-import { CAT8004_ADDRESS, CAT8004_ABI, ETH_PRICE_PER_1000_TOKENS, MIN_MINT_AMOUNT, MAX_MINT_AMOUNT } from '@/lib/contract';
-import Image from 'next/image';
+import { parseEther, formatEther } from 'viem';
+import { 
+  CAT8004_ADDRESS, 
+  CAT8004_ABI, 
+  ETH_PRICE_PER_1000_TOKENS, 
+  MIN_MINT_AMOUNT, 
+  MAX_MINT_AMOUNT,
+  TOKENS_PER_NFT 
+} from '../lib/contract';
 
 export default function Home() {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [mintSuccess, setMintSuccess] = useState(false);
-  const [mintAmount, setMintAmount] = useState(100);
+  const [mintAmount, setMintAmount] = useState(1000);
 
+  // Read contract data
   const { data: mintProgress, refetch: refetchProgress } = useReadContract({
-    address: CAT8004_ADDRESS as `0x${string}`,
+    address: CAT8004_ADDRESS,
     abi: CAT8004_ABI,
     functionName: 'getMintProgress',
   });
 
-  const { data: hash, writeContract, isPending } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
+  const { data: userBalance } = useReadContract({
+    address: CAT8004_ADDRESS,
+    abi: CAT8004_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
   });
+
+  const { data: expectedNFTs } = useReadContract({
+    address: CAT8004_ADDRESS,
+    abi: CAT8004_ABI,
+    functionName: 'getExpectedNFTCount',
+    args: address ? [address] : undefined,
+  });
+
+  const { data: distributionCount } = useReadContract({
+    address: CAT8004_ADDRESS,
+    abi: CAT8004_ABI,
+    functionName: 'getDistributionCount',
+  });
+
+  // Write contract
+  const { data: hash, writeContract, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   useEffect(() => {
     if (isSuccess) {
@@ -32,9 +57,8 @@ export default function Home() {
 
   const handleMint = () => {
     const costInEth = (mintAmount / 1000) * parseFloat(ETH_PRICE_PER_1000_TOKENS);
-    
     writeContract({
-      address: CAT8004_ADDRESS as `0x${string}`,
+      address: CAT8004_ADDRESS,
       abi: CAT8004_ABI,
       functionName: 'mint',
       args: [BigInt(mintAmount)],
@@ -47,364 +71,421 @@ export default function Home() {
     setMintAmount(clamped);
   };
 
-  const calculateCost = () => {
-    return (mintAmount / 1000) * parseFloat(ETH_PRICE_PER_1000_TOKENS);
-  };
+  const calculateCost = () => (mintAmount / 1000) * parseFloat(ETH_PRICE_PER_1000_TOKENS);
+  const calculateUsdCost = () => (mintAmount / 1000) * 10;
+  const calculateNFTs = () => Math.floor(mintAmount / TOKENS_PER_NFT);
 
-  const calculateUsdCost = () => {
-    return (mintAmount / 1000) * 10;
-  };
-
+  // Safe conversions
   const minted = mintProgress ? Number(mintProgress[0]) / 1e18 : 0;
   const total = mintProgress ? Number(mintProgress[1]) / 1e18 : 500000;
   const available = mintProgress ? Number(mintProgress[2]) / 1e18 : 500000;
-  const progressPercentage = (minted / total) * 100;
+  const progressPercentage = total > 0 ? (minted / total) * 100 : 0;
 
-  // Price breakdown data
+  const userNFTCount = expectedNFTs ? Number(expectedNFTs) : 0;
+  const userTokenBalance = userBalance ? Number(userBalance) / 1e18 : 0;
+  const distCount = distributionCount ? Number(distributionCount) : 0;
+
   const priceBreakdown = [
-    { tokens: 1, eth: '0.0000025', usd: '$0.01' },
-    { tokens: 100, eth: '0.00025', usd: '$1.00' },
-    { tokens: 500, eth: '0.00125', usd: '$5.00' },
-    { tokens: 1000, eth: '0.0025', usd: '$10.00' },
-    { tokens: 2500, eth: '0.00625', usd: '$25.00' },
-    { tokens: 5000, eth: '0.0125', usd: '$50.00' },
+    { tokens: 1000, eth: '0.0025', usd: '$10', nfts: 1 },
+    { tokens: 2500, eth: '0.00625', usd: '$25', nfts: 2 },
+    { tokens: 5000, eth: '0.0125', usd: '$50', nfts: 5 },
   ];
 
   return (
-    <div className="min-h-screen p-4 py-8">
-      {/* Header with Logo and X Icon */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="text-6xl font-black text-gradient">
-              CAT<span className="text-cat-accent">8004</span>
-            </div>
-          </div>
-          <a
-            href="https://x.com/cat_8004"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-black hover:bg-gray-800 text-white px-6 py-3 rounded-full transition-all hover:scale-105 shadow-lg"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-            </svg>
-            <span className="font-semibold">Follow @cat_8004</span>
-          </a>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto grid lg:grid-cols-3 gap-6">
-        {/* Left Column - Cat Mascot & Info */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Cat Mascot Card */}
-          <div className="glass-effect rounded-3xl p-6 shadow-blue">
-            <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-4 animate-float">
-              <img
-                src="/cat-mascot.jpg"
-                alt="Cat8004 Mascot"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <h2 className="text-2xl font-bold text-cat-blue-dark text-center mb-2">
-              Meet Cat8004! 🐱
-            </h2>
-            <p className="text-center text-gray-600 text-sm">
-              Your purr-fect companion to the moon! 🚀
-            </p>
-          </div>
-
-          {/* Token Info Card */}
-          <div className="glass-effect rounded-3xl p-6 shadow-blue">
-            <h3 className="text-xl font-bold text-cat-blue-dark mb-4 flex items-center gap-2">
-              <span>📊</span> Token Info
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Supply:</span>
-                <span className="font-bold text-cat-blue-dark">1,000,000</span>
+    <div className="min-h-screen relative">
+      {/* Header */}
+      <header className="relative z-10 border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="text-5xl font-display font-bold">
+                <span className="gradient-text">CAT</span>
+                <span className="gradient-text-gold">8004</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Mintable:</span>
-                <span className="font-bold text-cat-blue-dark">500,000</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Network:</span>
-                <span className="font-bold text-cat-blue-dark">Base</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Price:</span>
-                <span className="font-bold text-cat-blue-dark">1k = $10</span>
+              <div className="hidden sm:flex items-center gap-2 glass-card px-4 py-2 text-sm">
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                <span className="text-white/70 font-mono">ERC404</span>
               </div>
             </div>
-          </div>
 
-          {/* Chart Card */}
-          <div className="glass-effect rounded-3xl p-6 shadow-blue">
-            <h3 className="text-xl font-bold text-cat-blue-dark mb-4 flex items-center gap-2">
-              <span>📈</span> Minting Progress
-            </h3>
-            <div className="space-y-4">
-              {/* Bar Chart */}
-              <div className="relative h-48 flex items-end gap-2">
-                {/* Minted Bar */}
-                <div className="flex-1 flex flex-col items-center">
-                  <div 
-                    className="w-full bg-gradient-to-t from-cat-blue-dark to-cat-blue rounded-t-lg relative transition-all duration-1000"
-                    style={{ height: `${(minted / total) * 100}%` }}
-                  >
-                    <div className="absolute -top-8 left-0 right-0 text-center">
-                      <span className="text-xs font-bold text-cat-blue-dark bg-white px-2 py-1 rounded-full">
-                        {minted.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold text-gray-600 mt-2">Minted</span>
-                </div>
-                {/* Available Bar */}
-                <div className="flex-1 flex flex-col items-center">
-                  <div 
-                    className="w-full bg-gradient-to-t from-gray-300 to-gray-200 rounded-t-lg relative transition-all duration-1000"
-                    style={{ height: `${(available / total) * 100}%` }}
-                  >
-                    <div className="absolute -top-8 left-0 right-0 text-center">
-                      <span className="text-xs font-bold text-gray-700 bg-white px-2 py-1 rounded-full">
-                        {available.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold text-gray-600 mt-2">Available</span>
-                </div>
-              </div>
-              
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-200">
-                <div className="text-center p-2 bg-cat-blue-light/20 rounded-lg">
-                  <div className="text-2xl font-bold text-cat-blue-dark">{progressPercentage.toFixed(1)}%</div>
-                  <div className="text-xs text-gray-600">Minted</div>
-                </div>
-                <div className="text-center p-2 bg-gray-100 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-700">{(100 - progressPercentage).toFixed(1)}%</div>
-                  <div className="text-xs text-gray-600">Remaining</div>
-                </div>
-              </div>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://x.com/cat_8004"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary hidden sm:flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                <span className="font-semibold">@cat_8004</span>
+              </a>
+              <ConnectButton />
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Middle Column - Minting Interface */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Wallet Connect */}
-          <div className="glass-effect rounded-3xl p-6 shadow-blue flex justify-center">
-            <ConnectButton />
+      {/* Main Content */}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        {/* Hero Section */}
+        <div className="text-center mb-12 animate-fade-in">
+          <div className="inline-flex items-center gap-3 glass-card px-6 py-3 mb-6">
+            <span className="text-2xl">🐱</span>
+            <span className="text-white/80 font-medium">Hybrid ERC20 + ERC721 Token</span>
           </div>
+          <h1 className="text-5xl md:text-7xl font-display font-bold mb-4">
+            <span className="gradient-text">The Future of </span>
+            <br />
+            <span className="gradient-text-gold">Cat Tokens</span>
+          </h1>
+          <p className="text-xl text-white/70 max-w-2xl mx-auto">
+            Every 1,000 tokens automatically mints an NFT. Trade tokens, collect NFTs, join the revolution.
+          </p>
+        </div>
 
-          {isConnected && (
-            <>
-              {/* Amount Selector */}
-              <div className="glass-effect rounded-3xl p-6 shadow-blue">
-                <h3 className="text-xl font-bold text-cat-blue-dark mb-4 flex items-center gap-2">
-                  <span>🎯</span> Select Amount
+        <div className="grid lg:grid-cols-12 gap-6 mb-8">
+          {/* Left Sidebar - Stats & Cat */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Cat Mascot */}
+            <div className="glass-card p-6 animate-slide-up">
+              <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-4 animate-float">
+                <img
+                  src="/cat-mascot.jpg"
+                  alt="Cat8004"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="text-center">
+                <h3 className="text-2xl font-display font-bold text-white mb-2">
+                  Meet Cat8004
                 </h3>
-                <label className="block text-sm font-semibold text-gray-600 mb-3">
-                  How many tokens? (1 - 5,000)
-                </label>
-                <div className="flex items-center gap-3 mb-4">
-                  <button
-                    onClick={() => handleAmountChange(mintAmount - 10)}
-                    disabled={mintAmount <= MIN_MINT_AMOUNT}
-                    className="bg-cat-blue hover:bg-cat-blue-dark text-white px-6 py-3 rounded-xl font-bold disabled:bg-gray-300 transition-all hover:scale-105 text-xl"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    value={mintAmount}
-                    onChange={(e) => handleAmountChange(parseInt(e.target.value) || MIN_MINT_AMOUNT)}
-                    min={MIN_MINT_AMOUNT}
-                    max={MAX_MINT_AMOUNT}
-                    className="flex-1 text-center text-4xl font-bold text-cat-blue bg-white rounded-xl px-4 py-4 border-2 border-cat-blue focus:ring-4 focus:ring-cat-blue-light focus:outline-none"
-                  />
-                  <button
-                    onClick={() => handleAmountChange(mintAmount + 10)}
-                    disabled={mintAmount >= Math.min(MAX_MINT_AMOUNT, available)}
-                    className="bg-cat-blue hover:bg-cat-blue-dark text-white px-6 py-3 rounded-xl font-bold disabled:bg-gray-300 transition-all hover:scale-105 text-xl"
-                  >
-                    +
-                  </button>
+                <p className="text-white/60 text-sm">
+                  Your gateway to the future of hybrid tokens
+                </p>
+              </div>
+            </div>
+
+            {/* User Stats */}
+            {isConnected && (
+              <div className="glass-card p-6 space-y-4">
+                <h3 className="section-title text-xl">
+                  <span>👤</span> Your Holdings
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
+                    <span className="text-white/70">Tokens</span>
+                    <span className="text-2xl font-bold gradient-text">
+                      {userTokenBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-white/5 rounded-xl">
+                    <span className="text-white/70">NFTs</span>
+                    <span className="text-2xl font-bold gradient-text-gold">
+                      {userNFTCount}
+                    </span>
+                  </div>
                 </div>
-                
+              </div>
+            )}
+
+            {/* Token Info */}
+            <div className="glass-card p-6">
+              <h3 className="section-title text-xl">
+                <span>📊</span> Token Info
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">Type</span>
+                  <span className="font-mono font-semibold text-cat-blue-400">ERC404</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">Total Supply</span>
+                  <span className="font-semibold text-white">1,000,000</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">Mintable</span>
+                  <span className="font-semibold text-white">500,000</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">NFT Ratio</span>
+                  <span className="font-semibold text-cat-accent-500">1k = 1 NFT</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">Network</span>
+                  <span className="font-semibold text-white">Base</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">Distributions</span>
+                  <span className="font-semibold text-white">{distCount}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Center - Main Minting */}
+          <div className="lg:col-span-5 space-y-6">
+            {/* Amount Selector */}
+            <div className="glass-card-solid p-8">
+              <h3 className="section-title">
+                <span>🎯</span> Select Amount
+              </h3>
+              
+              <div className="space-y-6">
+                {/* Input */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Number of Tokens (1 - 5,000)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleAmountChange(mintAmount - 100)}
+                      disabled={mintAmount <= MIN_MINT_AMOUNT}
+                      className="btn-primary px-6 py-4 text-lg disabled:opacity-30"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      value={mintAmount}
+                      onChange={(e) => handleAmountChange(parseInt(e.target.value) || MIN_MINT_AMOUNT)}
+                      className="flex-1 text-center value-display text-cat-blue-600 bg-cat-blue-50 rounded-2xl px-4 py-4 border-2 border-cat-blue-200 focus:border-cat-blue-500 focus:ring-4 focus:ring-cat-blue-500/20 focus:outline-none transition-all"
+                    />
+                    <button
+                      onClick={() => handleAmountChange(mintAmount + 100)}
+                      disabled={mintAmount >= Math.min(MAX_MINT_AMOUNT, available)}
+                      className="btn-primary px-6 py-4 text-lg disabled:opacity-30"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
                 {/* Quick Select */}
-                <div className="grid grid-cols-5 gap-2">
-                  {[1, 10, 100, 1000, 5000].map((amount) => (
+                <div className="grid grid-cols-3 gap-3">
+                  {[1000, 2500, 5000].map((amount) => (
                     <button
                       key={amount}
                       onClick={() => setMintAmount(Math.min(amount, available))}
                       disabled={amount > available}
-                      className={`py-2 px-2 rounded-lg font-semibold text-sm transition-all ${
+                      className={`py-3 rounded-xl font-semibold text-sm transition-all ${
                         mintAmount === amount
-                          ? 'bg-cat-blue text-white scale-105'
-                          : 'bg-white text-cat-blue hover:bg-cat-blue-light hover:text-white'
-                      } disabled:opacity-50 disabled:cursor-not-allowed shadow-sm`}
+                          ? 'bg-cat-blue-600 text-white shadow-glow'
+                          : 'bg-cat-blue-100 text-cat-blue-700 hover:bg-cat-blue-200'
+                      } disabled:opacity-30`}
                     >
-                      {amount >= 1000 ? `${amount/1000}k` : amount}
+                      {amount.toLocaleString()}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              {/* Cost Display */}
-              <div className="glass-effect rounded-3xl p-6 shadow-blue">
-                <h3 className="text-xl font-bold text-cat-blue-dark mb-4 flex items-center gap-2">
-                  <span>💰</span> Your Cost
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gradient-to-br from-cat-blue to-cat-blue-dark p-4 rounded-xl text-white text-center">
-                    <div className="text-3xl font-bold mb-1">{calculateCost().toFixed(6)}</div>
-                    <div className="text-sm opacity-90">ETH</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-cat-accent to-yellow-500 p-4 rounded-xl text-white text-center">
-                    <div className="text-3xl font-bold mb-1">${calculateUsdCost().toFixed(2)}</div>
-                    <div className="text-sm opacity-90">USD</div>
+                {/* NFT Preview */}
+                <div className="p-4 bg-gradient-to-r from-cat-accent-50 to-cat-accent-100 rounded-xl border-2 border-cat-accent-400">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">🎨</div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-700">You will receive</div>
+                        <div className="text-2xl font-display font-bold text-cat-accent-600">
+                          {calculateNFTs()} NFT{calculateNFTs() !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-gray-600">+ Tokens</div>
+                      <div className="text-xl font-bold text-gray-900">{mintAmount.toLocaleString()}</div>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-4 p-3 bg-cat-blue-light/20 rounded-lg text-center">
-                  <p className="text-sm font-semibold text-cat-blue-dark">
-                    Rate: 1,000 tokens = $10 (0.0025 ETH)
-                  </p>
+              </div>
+            </div>
+
+            {/* Cost Display */}
+            <div className="glass-card-solid p-8">
+              <h3 className="section-title">
+                <span>💰</span> Cost
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-6 bg-gradient-to-br from-cat-blue-500 to-cat-blue-700 rounded-2xl text-white text-center shadow-glow">
+                  <div className="text-sm opacity-80 mb-1">ETH</div>
+                  <div className="value-display">{calculateCost().toFixed(4)}</div>
+                </div>
+                <div className="p-6 bg-gradient-to-br from-cat-accent-400 to-cat-accent-600 rounded-2xl text-white text-center shadow-lg">
+                  <div className="text-sm opacity-80 mb-1">USD</div>
+                  <div className="value-display">${calculateUsdCost().toFixed(2)}</div>
                 </div>
               </div>
+              <div className="mt-4 p-4 bg-cat-blue-50 rounded-xl text-center">
+                <p className="text-sm font-semibold text-cat-blue-900">
+                  Rate: 1,000 tokens = 0.0025 ETH ($10)
+                </p>
+              </div>
+            </div>
 
-              {/* Mint Button */}
+            {/* Mint Button */}
+            {isConnected ? (
               <button
                 onClick={handleMint}
-                disabled={isPending || isConfirming || available === 0 || mintAmount > available || mintAmount < MIN_MINT_AMOUNT}
-                className={`w-full py-5 px-8 rounded-2xl text-xl font-bold text-white transition-all duration-300 shadow-blue ${
-                  isPending || isConfirming || available === 0 || mintAmount > available || mintAmount < MIN_MINT_AMOUNT
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-cat-blue to-cat-blue-dark hover:scale-105'
-                }`}
+                disabled={isPending || isConfirming || available === 0 || mintAmount > available}
+                className="w-full btn-primary py-6 text-xl disabled:opacity-50"
               >
                 {isPending || isConfirming ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin h-6 w-6 mr-3" viewBox="0 0 24 24">
+                  <span className="flex items-center justify-center gap-3">
+                    <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    {isPending ? 'Confirm in Wallet...' : 'Minting...'}
+                    {isPending ? 'Confirm in Wallet' : 'Minting...'}
                   </span>
                 ) : available === 0 ? (
-                  '😿 Sold Out!'
-                ) : mintAmount > available ? (
-                  '⚠️ Not Enough Available'
+                  'Sold Out 😿'
                 ) : (
-                  `🐾 Mint ${mintAmount.toLocaleString()} Cat8004`
+                  `Mint ${mintAmount.toLocaleString()} Cat8004 🐾`
                 )}
               </button>
+            ) : (
+              <div className="text-center p-6 glass-card-solid">
+                <p className="text-gray-600 mb-4">Connect your wallet to start minting</p>
+                <div className="flex justify-center">
+                  <ConnectButton />
+                </div>
+              </div>
+            )}
 
-              {/* Success Message */}
-              {mintSuccess && (
-                <div className="glass-effect rounded-2xl p-6 border-2 border-green-500 shadow-blue animate-pulse-slow">
-                  <div className="text-center">
-                    <div className="text-6xl mb-3">🎉</div>
-                    <div className="text-green-700 font-bold text-xl mb-1">
-                      Success!
-                    </div>
-                    <div className="text-green-600">
-                      {mintAmount.toLocaleString()} Cat8004 tokens minted! 😸
-                    </div>
+            {/* Success */}
+            {mintSuccess && (
+              <div className="glass-card-solid p-6 border-2 border-green-500 animate-slide-up">
+                <div className="text-center">
+                  <div className="text-6xl mb-3">🎉</div>
+                  <div className="text-2xl font-bold text-green-700 mb-2">Success!</div>
+                  <div className="text-green-600">
+                    {mintAmount.toLocaleString()} tokens + {calculateNFTs()} NFT{calculateNFTs() !== 1 ? 's' : ''} minted!
                   </div>
                 </div>
-              )}
-            </>
-          )}
+              </div>
+            )}
 
-          {/* Progress Bar */}
-          <div className="glass-effect rounded-3xl p-6 shadow-blue">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span className="font-semibold">Progress</span>
-              <span className="font-bold text-cat-blue-dark">{minted.toLocaleString()} / {total.toLocaleString()}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-cat-blue via-cat-blue-light to-cat-accent h-full rounded-full transition-all duration-1000 animate-pulse-slow"
-                style={{ width: `${progressPercentage}%` }}
-              />
-            </div>
-            <div className="text-center mt-2">
-              <span className="text-2xl font-bold text-cat-blue-dark">{available.toLocaleString()}</span>
-              <span className="text-sm text-gray-600 ml-2">tokens available</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column - Price Breakdown */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="glass-effect rounded-3xl p-6 shadow-blue">
-            <h3 className="text-xl font-bold text-cat-blue-dark mb-4 flex items-center gap-2">
-              <span>💵</span> Price Breakdown
-            </h3>
-            <div className="space-y-2">
-              {priceBreakdown.map((item, idx) => (
+            {/* Progress */}
+            <div className="glass-card p-6">
+              <div className="flex justify-between text-sm text-white/70 mb-3">
+                <span className="font-semibold">Minting Progress</span>
+                <span className="font-mono">{minted.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {total.toLocaleString()}</span>
+              </div>
+              <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
                 <div
-                  key={idx}
-                  className={`p-4 rounded-xl transition-all hover:scale-105 cursor-pointer ${
-                    mintAmount === item.tokens
-                      ? 'bg-gradient-to-r from-cat-blue to-cat-blue-dark text-white shadow-lg'
-                      : 'bg-white hover:bg-cat-blue-light/20'
-                  }`}
-                  onClick={() => setMintAmount(item.tokens)}
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className={`text-lg font-bold ${mintAmount === item.tokens ? 'text-white' : 'text-cat-blue-dark'}`}>
-                        {item.tokens.toLocaleString()} tokens
-                      </div>
-                      <div className={`text-sm ${mintAmount === item.tokens ? 'text-white/80' : 'text-gray-600'}`}>
-                        {item.eth} ETH
-                      </div>
-                    </div>
-                    <div className={`text-2xl font-bold ${mintAmount === item.tokens ? 'text-cat-accent' : 'text-cat-blue'}`}>
-                      {item.usd}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  className="h-full bg-gradient-to-r from-cat-blue-500 via-cat-blue-400 to-cat-accent-500 transition-all duration-1000 shimmer"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+              <div className="text-center mt-4">
+                <div className="text-3xl font-display font-bold gradient-text">{available.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="text-white/60 text-sm">tokens available</div>
+              </div>
             </div>
           </div>
 
-          {/* Contract Info */}
-          <div className="glass-effect rounded-3xl p-6 shadow-blue">
-            <h3 className="text-xl font-bold text-cat-blue-dark mb-4 flex items-center gap-2">
-              <span>🔗</span> Contract
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div>
-                <div className="text-gray-600 mb-1">Network:</div>
-                <div className="font-bold text-cat-blue-dark">Base Mainnet</div>
+          {/* Right Sidebar - Pricing & Info */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Price Breakdown */}
+            <div className="glass-card p-6">
+              <h3 className="section-title text-xl">
+                <span>💵</span> Pricing
+              </h3>
+              <div className="space-y-3">
+                {priceBreakdown.map((item, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setMintAmount(item.tokens)}
+                    className={`price-card p-4 cursor-pointer ${
+                      mintAmount === item.tokens ? 'price-card-active' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className={`text-lg font-bold ${mintAmount === item.tokens ? 'text-white' : 'text-white'}`}>
+                          {item.tokens.toLocaleString()}
+                        </div>
+                        <div className={`text-xs ${mintAmount === item.tokens ? 'text-white/80' : 'text-white/60'}`}>
+                          tokens
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xl font-display font-bold ${mintAmount === item.tokens ? 'text-cat-accent-400' : 'gradient-text-gold'}`}>
+                          {item.usd}
+                        </div>
+                        <div className={`text-xs font-mono ${mintAmount === item.tokens ? 'text-white/80' : 'text-white/60'}`}>
+                          {item.eth} ETH
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`text-xs ${mintAmount === item.tokens ? 'text-white/80' : 'text-white/60'}`}>
+                      🎨 {item.nfts} NFT{item.nfts > 1 ? 's' : ''}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <div className="text-gray-600 mb-1">Address:</div>
-                <a
-                  href={`https://basescan.org/address/${CAT8004_ADDRESS}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-cat-blue hover:text-cat-blue-dark break-all font-mono text-xs hover:underline"
-                >
-                  {CAT8004_ADDRESS}
-                </a>
+            </div>
+
+            {/* Contract Info */}
+            <div className="glass-card p-6">
+              <h3 className="section-title text-xl">
+                <span>🔗</span> Contract
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <div className="text-white/60 mb-1">Network</div>
+                  <div className="font-semibold text-white">Base Mainnet</div>
+                </div>
+                <div>
+                  <div className="text-white/60 mb-1">Address</div>
+                  <a
+                    href={`https://basescan.org/address/${CAT8004_ADDRESS}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cat-blue-400 hover:text-cat-blue-300 break-all font-mono text-xs hover:underline"
+                  >
+                    {CAT8004_ADDRESS}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Features */}
+            <div className="glass-card p-6">
+              <h3 className="section-title text-xl">
+                <span>✨</span> Features
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start gap-2">
+                  <span className="text-green-400">✓</span>
+                  <span className="text-white/80">Auto NFT minting per 1k tokens</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-green-400">✓</span>
+                  <span className="text-white/80">Manual distribution tracking</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-green-400">✓</span>
+                  <span className="text-white/80">Verified on BaseScan</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-green-400">✓</span>
+                  <span className="text-white/80">Hybrid ERC20/ERC721</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Footer */}
-      <div className="max-w-7xl mx-auto mt-8 text-center">
-        <p className="text-gray-600 text-sm">
-          Made with 💙 for cat lovers | Powered by Base ⚡
-        </p>
-      </div>
+      <footer className="relative z-10 border-t border-white/10 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
+          <p className="text-white/50 text-sm">
+            Made with 💙 for cat lovers | Powered by Base ⚡
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
