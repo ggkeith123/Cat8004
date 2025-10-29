@@ -1,28 +1,180 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/inter/800.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+  background-attachment: fixed;
   min-height: 100vh;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-inter);
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-xl border border-white/20;
+    @apply rounded-3xl shadow-2xl;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(255, 255, 255, 0.05) 100%
+    );
+  }
+  
+  .glass-card-solid {
+    @apply bg-white backdrop-blur-sm border border-cat-blue-200/30;
+    @apply rounded-3xl shadow-2xl;
+  }
+  
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #60A5FA 0%, #3B82F6 50%, #2563EB 100%);
+  }
+  
+  .gradient-text-gold {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #FCD34D 0%, #FBBF24 50%, #F59E0B 100%);
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-to-r from-cat-blue-600 to-cat-blue-700;
+    @apply hover:from-cat-blue-700 hover:to-cat-blue-800;
+    @apply text-white font-bold rounded-2xl px-8 py-4;
+    @apply transition-all duration-300 transform hover:scale-105;
+    @apply shadow-lg hover:shadow-glow;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
+  }
+  
+  .btn-secondary {
+    @apply bg-white/10 hover:bg-white/20;
+    @apply text-white font-semibold rounded-xl px-6 py-3;
+    @apply border border-white/30 hover:border-white/50;
+    @apply transition-all duration-200;
+  }
+  
+  .input-field {
+    @apply bg-white/10 backdrop-blur-sm;
+    @apply border-2 border-white/30 focus:border-cat-blue-400;
+    @apply rounded-2xl px-6 py-4;
+    @apply text-white placeholder-white/50;
+    @apply focus:outline-none focus:ring-4 focus:ring-cat-blue-500/30;
+    @apply transition-all duration-200;
+  }
+  
+  .stat-card {
+    @apply glass-card p-6;
+    @apply flex flex-col items-center justify-center;
+    @apply hover:scale-105 transition-transform duration-300;
+  }
+  
+  .price-card {
+    @apply glass-card p-5 cursor-pointer;
+    @apply hover:scale-105 hover:shadow-glow;
+    @apply transition-all duration-300;
+  }
+  
+  .price-card-active {
+    @apply bg-gradient-to-br from-cat-blue-500 to-cat-blue-700;
+    @apply border-cat-blue-400 shadow-glow-lg;
+  }
+  
+  .section-title {
+    @apply text-2xl md:text-3xl font-display font-bold text-white mb-6;
+    @apply flex items-center gap-3;
+  }
+  
+  .value-display {
+    @apply text-4xl md:text-5xl font-display font-bold;
+  }
+  
+  .shimmer {
+    @apply relative overflow-hidden;
+  }
+  
+  .shimmer::after {
+    content: '';
+    @apply absolute inset-0;
+    background: var(--shimmer-gradient);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
 }
 
 @layer utilities {
-  .glass-effect {
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+  .text-glow {
+    text-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
   }
   
-  .text-gradient {
-    background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .border-glow {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
   }
-  
-  .shadow-blue {
-    box-shadow: 0 10px 40px rgba(59, 130, 246, 0.3);
-  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3B82F6 0%, #2563EB 100%);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%);
+}
+
+/* Selection */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: white;
 }
